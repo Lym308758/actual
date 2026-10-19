@@ -101,6 +101,15 @@ export function createCustomSpreadsheet({
     accounts,
   );
 
+  // Weekly reports display whole calendar weeks, so the query has to run
+  // through the end of the week that `endDate` falls in. Otherwise
+  // transactions dated after `endDate` are dropped from the final interval
+  // even though the report renders that interval as a full week.
+  const lastIntervalEndDate =
+    interval === 'Weekly'
+      ? monthUtils.getWeekEnd(endDate, firstDayOfWeekIdx)
+      : endDate;
+
   return async (
     spreadsheet: ReturnType<typeof useSpreadsheet>,
     setData: (data: DataEntity) => void,
@@ -137,7 +146,7 @@ export function createCustomSpreadsheet({
     ({ assets, debts } = await fetchSpreadsheetQueryData({
       balanceTypeOp,
       startDate,
-      endDate,
+      endDate: lastIntervalEndDate,
       interval,
       categories: categories.list,
       categoryGroups: categories.grouped,
@@ -298,7 +307,7 @@ export function createCustomSpreadsheet({
           intervalStartDate: index === 0 ? startDate : intervalItem,
           intervalEndDate:
             index + 1 === intervals.length
-              ? endDate
+              ? lastIntervalEndDate
               : monthUtils.subDays(intervals[index + 1], 1),
           totalAssets: perIntervalAssets,
           totalDebts: perIntervalDebts,

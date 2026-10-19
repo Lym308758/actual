@@ -77,3 +77,46 @@ it.each([
     ]);
   },
 );
+
+it('includes transactions from the rest of the last week in weekly reports', async () => {
+  const weeklyTransactions = [
+    { ...transaction, date: '2024-09-30', amount: -100 },
+    // Falls in the week of 2024-10-28, i.e. after the selected end date.
+    { ...transaction, date: '2024-10-30', amount: -25 },
+  ];
+
+  // Mirror `makeQuery`, which filters transactions by the requested range.
+  vi.mocked(fetchSpreadsheetQueryData).mockImplementation(
+    async ({ endDate }) => ({
+      assets: [],
+      debts: weeklyTransactions.filter(t => t.date <= endDate),
+    }),
+  );
+
+  const { result } = renderHook(useSpreadsheet, {
+    wrapper: SpreadsheetProvider,
+  });
+  const setData = vi.fn<(data: DataEntity) => void>();
+  await createCustomSpreadsheet({
+    startDate: '2024-09-30',
+    endDate: '2024-10-28',
+    interval: 'Weekly',
+    categories: { list: [], grouped: [] },
+    conditions: [],
+    conditionsOp: 'and',
+    showEmpty: true,
+    showOffBudget: false,
+    showHiddenCategories: false,
+    showUncategorized: false,
+    trimIntervals: false,
+    groupBy: 'Tag',
+    tags: [{ id: 'red', tag: 'red' }],
+    firstDayOfWeekIdx: '1',
+  })(result.current, setData);
+
+  const data = setData.mock.calls[0][0];
+  expect(data.intervalData.map(interval => interval.totalDebts)).toEqual([
+    -100, 0, 0, 0, -25,
+  ]);
+  expect(data.intervalData.at(-1)?.intervalEndDate).toBe('2024-11-03');
+});
